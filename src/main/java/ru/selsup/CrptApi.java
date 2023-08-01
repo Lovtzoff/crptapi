@@ -1,10 +1,7 @@
 package ru.selsup;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -17,6 +14,7 @@ import org.apache.http.util.EntityUtils;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -111,7 +109,8 @@ public class CrptApi {
      * @throws IOException          the io exception
      * @throws InterruptedException the interrupted exception
      */
-    public synchronized void createDocument(String document, String productGroup, String signature) throws IOException, InterruptedException {
+    public synchronized void createDocument(Document document, String productGroup, String signature)
+            throws IOException, InterruptedException {
         makeRequest();
 
         String url = apiUrl + "?pg=" + productGroup;
@@ -119,15 +118,19 @@ public class CrptApi {
         HttpClient httpClient = HttpClientBuilder.create().build();
         HttpPost httpPost = new HttpPost(url);
 
-        RequestToCreateDocument request = RequestToCreateDocument.builder()
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        String jsonDocument = objectMapper.writeValueAsString(document);
+
+        RequestBodyToCreateDocument requestBody = RequestBodyToCreateDocument.builder()
                 .documentFormat("MANUAL")
-                .productDocument(document)
+                .productDocument(jsonDocument)
                 .productGroup(productGroup)
                 .signature(signature)
                 .type("LP_INTRODUCE_GOODS")
                 .build();
 
-        String jsonRequestBody = new ObjectMapper().writeValueAsString(request);
+        String jsonRequestBody = objectMapper.writeValueAsString(requestBody);
 
         StringEntity entity = new StringEntity(jsonRequestBody);
         httpPost.setEntity(entity);
@@ -138,8 +141,10 @@ public class CrptApi {
         HttpEntity responseEntity = response.getEntity();
 
         if (responseEntity != null) {
+            int responseStatusCode = response.getStatusLine().getStatusCode();
             String responseString = EntityUtils.toString(responseEntity);
-            System.out.println(responseString);
+            System.out.println("StatusCode: " + responseStatusCode +
+                    ",\nResponseEntity: " + responseString);
         }
     }
 
@@ -163,11 +168,73 @@ public class CrptApi {
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
     @Builder
-    private static class RequestToCreateDocument {
+    private static class RequestBodyToCreateDocument {
         final String documentFormat;
         final String productDocument;
-        final String productGroup;
+        @Setter
+        String productGroup;
         final String signature;
         final String type;
+    }
+
+    /**
+     * The type Description.
+     */
+    @Getter
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class Description {
+        final String participantInn;
+    }
+
+    /**
+     * The type Product.
+     */
+    @Getter
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    @Builder
+    public static class Product {
+        @Setter
+        String certificateDocument;
+        @Setter
+        String certificateDocumentDate;
+        @Setter
+        String certificateDocumentNumber;
+        final String ownerInn;
+        final String producerInn;
+        final String productionDate;
+        final String tnvedCode;
+        @Setter
+        String uitCode;
+        @Setter
+        String uituCode;
+    }
+
+    /**
+     * The type Document.
+     */
+    @Getter
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    @Builder
+    public static class Document {
+        @Setter
+        Description description;
+        final String docId;
+        final String docStatus;
+        final String docType;
+        @Setter
+        String importRequest;
+        final String ownerInn;
+        final String participantInn;
+        final String producerInn;
+        final String productionDate;
+        final String productionType;
+        @Setter
+        List<Product> products;
+        final String regDate;
+        @Setter
+        String regNumber;
     }
 }
