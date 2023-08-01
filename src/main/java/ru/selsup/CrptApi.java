@@ -1,5 +1,22 @@
 package ru.selsup;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.experimental.FieldDefaults;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
+
+import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,6 +46,8 @@ public class CrptApi {
      * Переменная для хранения времени последнего запроса.
      */
     private long lastRequestTime = System.currentTimeMillis();
+    private final String apiUrl = "https://ismp.crpt.ru/api/v3/lk/documents/create";
+    private final String token = generateNewToken();
 
     /**
      * Конструктор по умолчанию.
@@ -61,7 +80,7 @@ public class CrptApi {
      *
      * @throws InterruptedException the interrupted exception
      */
-    public synchronized void makeRequest() throws InterruptedException {
+    private synchronized void makeRequest() throws InterruptedException {
         long currentTime = System.currentTimeMillis();
         long elapsed = currentTime - lastRequestTime;
 
@@ -81,5 +100,74 @@ public class CrptApi {
             requestCounter.set(0);
             lastRequestTime = System.currentTimeMillis();
         }
+    }
+
+    /**
+     * Создать документ.
+     *
+     * @param document     the document
+     * @param productGroup the product group
+     * @param signature    the signature
+     * @throws IOException          the io exception
+     * @throws InterruptedException the interrupted exception
+     */
+    public synchronized void createDocument(String document, String productGroup, String signature) throws IOException, InterruptedException {
+        makeRequest();
+
+        String url = apiUrl + "?pg=" + productGroup;
+
+        HttpClient httpClient = HttpClientBuilder.create().build();
+        HttpPost httpPost = new HttpPost(url);
+
+        RequestToCreateDocument request = RequestToCreateDocument.builder()
+                .documentFormat("MANUAL")
+                .productDocument(document)
+                .productGroup(productGroup)
+                .signature(signature)
+                .type("LP_INTRODUCE_GOODS")
+                .build();
+
+        String jsonRequestBody = new ObjectMapper().writeValueAsString(request);
+
+        StringEntity entity = new StringEntity(jsonRequestBody);
+        httpPost.setEntity(entity);
+        httpPost.setHeader("Authorization", "Bearer " + token);
+        httpPost.setHeader("Content-Type", "application/json");
+
+        HttpResponse response = httpClient.execute(httpPost);
+        HttpEntity responseEntity = response.getEntity();
+
+        if (responseEntity != null) {
+            String responseString = EntityUtils.toString(responseEntity);
+            System.out.println(responseString);
+        }
+    }
+
+    /**
+     * Сгенерировать случайную строку с токеном в кодировке base64 с 32 символами.
+     *
+     * @return строка с токеном
+     */
+    private static String generateNewToken() {
+        SecureRandom secureRandom = new SecureRandom();
+        Base64.Encoder base64Encoder = Base64.getUrlEncoder();
+        byte[] randomBytes = new byte[24];
+        secureRandom.nextBytes(randomBytes);
+        return base64Encoder.encodeToString(randomBytes);
+    }
+
+    /**
+     * Класс тела запроса для создания документа.
+     */
+    @Getter
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    @Builder
+    private static class RequestToCreateDocument {
+        final String documentFormat;
+        final String productDocument;
+        final String productGroup;
+        final String signature;
+        final String type;
     }
 }

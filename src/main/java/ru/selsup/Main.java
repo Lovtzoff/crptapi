@@ -1,5 +1,6 @@
 package ru.selsup;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 public class Main {
@@ -16,10 +17,12 @@ public class Main {
         for (int i = 0; i < 20; i++) {
             try {
                 // сделать запрос API
-                api.makeRequest();
+                api.createDocument("doc" + i, "milk", "sig" + i);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         }
     }
